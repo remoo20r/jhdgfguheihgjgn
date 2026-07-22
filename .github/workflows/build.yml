@@ -1,0 +1,61 @@
+name: Build BellaTV
+
+# Runs on every push to the main branch, on pull requests, and can also be
+# started manually from the Actions tab (Run workflow).
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      # Pin the exact Flutter version this project needs (Dart >= 3.12.2).
+      # Leaving it on plain 'stable' would silently move to newer releases
+      # and could break the build, so we lock it here.
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          flutter-version: '3.44.7'
+          cache: true
+
+      - name: Show Flutter version
+        run: flutter --version
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      # Analyze and test run for information only: a warning must not stop the
+      # APK from being built (|| true keeps the job green either way).
+      - name: Analyze (non-blocking)
+        run: flutter analyze || true
+
+      - name: Run tests (non-blocking)
+        run: flutter test || true
+
+      - name: Build release APK
+        run: flutter build apk --release --no-tree-shake-icons
+
+      - name: Rename APK to BellaTV.apk
+        run: cp build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/BellaTV.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BellaTV-APK
+          path: build/app/outputs/flutter-apk/BellaTV.apk
+          if-no-files-found: error

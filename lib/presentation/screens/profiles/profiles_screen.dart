@@ -1,0 +1,150 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../../core/theme/app_theme.dart';
+import '../../../data/models/xtream_profile.dart';
+import '../../../state/profile_providers.dart';
+import '../../common/app_dialogs.dart';
+import '../../common/app_logo.dart';
+import '../../common/tv_focusable.dart';
+
+class ProfilesScreen extends ConsumerWidget {
+  const ProfilesScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final profiles = ref.watch(profilesProvider);
+
+    return Scaffold(
+      appBar: AppBar(
+        titleSpacing: 20,
+        centerTitle: true,
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const AppLogo(size: 30),
+            const SizedBox(width: 12),
+            Text('BellaTV', style: Theme.of(context).textTheme.titleLarge),
+          ],
+        ),
+      ),
+      body: profiles.isEmpty
+          ? _EmptyState(onAdd: () => context.push('/profiles/add'))
+          : ListView.separated(
+              padding: const EdgeInsets.all(20),
+              itemCount: profiles.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 12),
+              itemBuilder: (context, index) {
+                final profile = profiles[index];
+                return _ProfileTile(
+                  profile: profile,
+                  autofocus: index == 0,
+                  onSelect: () => context.push('/profiles/add', extra: profile),
+                  onEdit: () => context.push('/profiles/add', extra: profile),
+                  onDelete: () => _confirmDelete(context, ref, profile),
+                );
+              },
+            ),
+      floatingActionButton: profiles.isEmpty
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: () => context.push('/profiles/add'),
+              icon: const Icon(Icons.add),
+              label: const Text('Add playlist'),
+            ),
+    );
+  }
+
+  Future<void> _confirmDelete(BuildContext context, WidgetRef ref, XtreamProfile profile) async {
+    final confirmed = await showAppConfirmDialog(
+      context,
+      title: 'Delete playlist?',
+      message: '"${profile.name}" will be removed along with its saved credentials.',
+      confirmLabel: 'Delete',
+    );
+    if (confirmed) {
+      await ref.read(profilesProvider.notifier).remove(profile.id);
+    }
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  const _EmptyState({required this.onAdd});
+
+  final VoidCallback onAdd;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.live_tv_outlined, size: 56, color: AppColors.textSecondary),
+          const SizedBox(height: 16),
+          Text('No playlists', style: Theme.of(context).textTheme.headlineMedium),
+          const SizedBox(height: 8),
+          Text(
+            'Add your Xtream Codes credentials to get started',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            // D-pad: the fresh-install flow lands here right after the device
+            // picker — the remote needs a focused button to press OK on.
+            // Invisible on touch (focus highlights only show in keyboard mode).
+            autofocus: true,
+            onPressed: onAdd,
+            icon: const Icon(Icons.add),
+            label: const Text('Add playlist'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileTile extends StatelessWidget {
+  const _ProfileTile({
+    required this.profile,
+    required this.onSelect,
+    required this.onEdit,
+    required this.onDelete,
+    this.autofocus = false,
+  });
+
+  final XtreamProfile profile;
+  final VoidCallback onSelect;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+  final bool autofocus;
+
+  @override
+  Widget build(BuildContext context) {
+    return TvFocusable(
+      onTap: onSelect,
+      autofocus: autofocus,
+      child: Card(
+        child: ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          leading: const CircleAvatar(
+            backgroundColor: AppColors.surfaceElevated,
+            child: Icon(Icons.playlist_play, color: AppColors.accent),
+          ),
+          title: Text(profile.name, style: Theme.of(context).textTheme.titleLarge),
+          // Show the username only — the server host URL stays hidden.
+          subtitle: Text(profile.username),
+          // No ListTile.onTap: it would be a second focus node on TV — taps
+          // and OK go through the TvFocusable wrapper instead.
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(icon: const Icon(Icons.edit_outlined), onPressed: onEdit),
+              IconButton(icon: const Icon(Icons.delete_outline), onPressed: onDelete),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
